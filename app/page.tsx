@@ -41,7 +41,10 @@ export default function AudiencePage() {
 
   async function poll() {
     try {
-      const res = await fetch('/api/state', { cache: 'no-store' })
+      const res = await fetch(`/api/state?t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'cache-control': 'no-cache' },
+      })
       const data: StateResp = await res.json()
       const q = data.questions.find(q => q.id === data.currentQuestionId)
       if (!q) return
@@ -62,7 +65,7 @@ export default function AudiencePage() {
 
   useEffect(() => {
     poll()
-    const t = setInterval(poll, 1500)
+    const t = setInterval(poll, 800)
     return () => clearInterval(t)
   }, [])
 
@@ -134,7 +137,7 @@ export default function AudiencePage() {
                   onClick={() => setOtherMode(true)}
                   className="w-full text-left px-4 py-3 rounded-xl border border-dashed border-stone-300 hover:bg-stone-100 text-stone-500 transition-colors"
                 >
-                  Other — type your own
+                  Other (type your own)
                 </button>
               ) : (
                 <div className="flex flex-col gap-2">

@@ -14,5 +14,8 @@ export async function POST(req: Request) {
   }
 
   store.currentQuestionId = question_id
-  return NextResponse.json({ ok: true })
+  return NextResponse.json(
+    { ok: true, currentQuestionId: store.currentQuestionId },
+    { headers: { 'Cache-Control': 'no-store' } },
+  )
 }
