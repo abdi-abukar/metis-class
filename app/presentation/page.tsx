@@ -33,6 +33,7 @@ export default function PresentationPage() {
   const [liveId, setLiveId] = useState<number | null>(null)
   const [voteCount, setVoteCount] = useState(0)
   const touchStartX = useRef<number | null>(null)
+  const pendingPushRef = useRef<{ id: number; until: number } | null>(null)
   const slide = SLIDES[index]
 
   useEffect(() => {
@@ -45,9 +46,17 @@ export default function PresentationPage() {
         })
         const data = await res.json()
         if (!alive) return
-        setLiveId(data.currentQuestionId)
+        const incoming = data.currentQuestionId
+        const pending = pendingPushRef.current
+        let liveForVotes = incoming
+        if (pending && Date.now() < pending.until && incoming !== pending.id) {
+          liveForVotes = pending.id
+        } else {
+          if (pending && incoming === pending.id) pendingPushRef.current = null
+          setLiveId(incoming)
+        }
         const total = (data.votes || []).filter(
-          (v: { question_id: number }) => v.question_id === data.currentQuestionId,
+          (v: { question_id: number }) => v.question_id === liveForVotes,
         ).length
         setVoteCount(total)
       } catch {}
@@ -78,11 +87,18 @@ export default function PresentationPage() {
 
   async function pushPoll(id: number) {
     setPushed(id)
-    await fetch('/api/push', {
+    pendingPushRef.current = { id, until: Date.now() + 2000 }
+    setLiveId(id)
+    const res = await fetch('/api/push', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ question_id: id }),
     })
+    const data = await res.json().catch(() => null)
+    if (data && typeof data.currentQuestionId === 'number') {
+      setLiveId(data.currentQuestionId)
+      if (data.currentQuestionId === id) pendingPushRef.current = null
+    }
     setTimeout(() => setPushed(null), 1800)
   }
 
@@ -424,9 +440,6 @@ function DiscussSlide() {
           prompt="Teillet is a lawyer writing history. How does that shape what she notices and what she argues?"
         />
       </div>
-      <p className="text-sm text-stone-500 italic">
-        Goal: open genuine discussion. React to what the class says. Don&apos;t just move on.
-      </p>
     </div>
   )
 }

@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface Question {
   id: number
@@ -27,13 +27,23 @@ export default function AdminPage() {
   const [currentId, setCurrentId] = useState<number>(0)
   const [votesByQ, setVotesByQ] = useState<Record<number, Vote[]>>({})
   const [expanded, setExpanded] = useState<Record<number, boolean>>({})
+  const pendingPushRef = useRef<{ id: number; until: number } | null>(null)
 
   async function poll() {
     try {
-      const res = await fetch('/api/state', { cache: 'no-store' })
+      const res = await fetch(`/api/state?t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'cache-control': 'no-cache' },
+      })
       const data: StateResp = await res.json()
       setQuestions(data.questions)
-      setCurrentId(data.currentQuestionId)
+      const pending = pendingPushRef.current
+      if (pending && Date.now() < pending.until && data.currentQuestionId !== pending.id) {
+        // a poll in flight from before the push: ignore its currentQuestionId
+      } else {
+        if (pending && data.currentQuestionId === pending.id) pendingPushRef.current = null
+        setCurrentId(data.currentQuestionId)
+      }
       const grouped: Record<number, Vote[]> = {}
       for (const v of data.votes) {
         if (!grouped[v.question_id]) grouped[v.question_id] = []
@@ -50,12 +60,18 @@ export default function AdminPage() {
   }, [])
 
   async function pushQuestion(id: number) {
+    pendingPushRef.current = { id, until: Date.now() + 2000 }
     setCurrentId(id)
-    await fetch('/api/push', {
+    const res = await fetch('/api/push', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ question_id: id }),
     })
+    const data = await res.json().catch(() => null)
+    if (data && typeof data.currentQuestionId === 'number') {
+      setCurrentId(data.currentQuestionId)
+      if (data.currentQuestionId === id) pendingPushRef.current = null
+    }
   }
 
   async function resetAll() {
