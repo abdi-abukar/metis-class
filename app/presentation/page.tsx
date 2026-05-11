@@ -34,11 +34,14 @@ export default function PresentationPage() {
   const [voteCount, setVoteCount] = useState(0)
   const touchStartX = useRef<number | null>(null)
   const pendingPushRef = useRef<{ id: number; until: number } | null>(null)
+  const inFlightRef = useRef(false)
   const slide = SLIDES[index]
 
   useEffect(() => {
     let alive = true
     async function poll() {
+      if (inFlightRef.current) return
+      inFlightRef.current = true
       try {
         const res = await fetch(`/api/state?t=${Date.now()}`, {
           cache: 'no-store',
@@ -59,10 +62,13 @@ export default function PresentationPage() {
           (v: { question_id: number }) => v.question_id === liveForVotes,
         ).length
         setVoteCount(total)
-      } catch {}
+      } catch {
+      } finally {
+        inFlightRef.current = false
+      }
     }
     poll()
-    const t = setInterval(poll, 800)
+    const t = setInterval(poll, 1000)
     return () => {
       alive = false
       clearInterval(t)

@@ -24,12 +24,15 @@ interface StateResp {
 
 export default function AdminPage() {
   const [questions, setQuestions] = useState<Question[]>([])
-  const [currentId, setCurrentId] = useState<number>(0)
+  const [currentId, setCurrentId] = useState<number | null>(null)
   const [votesByQ, setVotesByQ] = useState<Record<number, Vote[]>>({})
   const [expanded, setExpanded] = useState<Record<number, boolean>>({})
   const pendingPushRef = useRef<{ id: number; until: number } | null>(null)
+  const inFlightRef = useRef(false)
 
   async function poll() {
+    if (inFlightRef.current) return
+    inFlightRef.current = true
     try {
       const res = await fetch(`/api/state?t=${Date.now()}`, {
         cache: 'no-store',
@@ -39,7 +42,7 @@ export default function AdminPage() {
       setQuestions(data.questions)
       const pending = pendingPushRef.current
       if (pending && Date.now() < pending.until && data.currentQuestionId !== pending.id) {
-        // a poll in flight from before the push: ignore its currentQuestionId
+        // ignore stale id from in-flight poll
       } else {
         if (pending && data.currentQuestionId === pending.id) pendingPushRef.current = null
         setCurrentId(data.currentQuestionId)
@@ -50,7 +53,10 @@ export default function AdminPage() {
         grouped[v.question_id].push(v)
       }
       setVotesByQ(grouped)
-    } catch {}
+    } catch {
+    } finally {
+      inFlightRef.current = false
+    }
   }
 
   useEffect(() => {

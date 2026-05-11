@@ -34,12 +34,15 @@ export default function AudiencePage() {
   const [loading, setLoading] = useState(true)
   const voterIdRef = useRef<string>('')
   const lastIdRef = useRef<number | null>(null)
+  const inFlightRef = useRef(false)
 
   useEffect(() => {
     voterIdRef.current = getVoterId()
   }, [])
 
   async function poll() {
+    if (inFlightRef.current) return
+    inFlightRef.current = true
     try {
       const res = await fetch(`/api/state?t=${Date.now()}`, {
         cache: 'no-store',
@@ -60,12 +63,15 @@ export default function AudiencePage() {
         setQuestion(q)
       }
       setLoading(false)
-    } catch {}
+    } catch {
+    } finally {
+      inFlightRef.current = false
+    }
   }
 
   useEffect(() => {
     poll()
-    const t = setInterval(poll, 800)
+    const t = setInterval(poll, 1000)
     return () => clearInterval(t)
   }, [])
 

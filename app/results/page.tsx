@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface Question {
   id: number
@@ -23,12 +23,18 @@ interface StateResp {
 
 export default function ResultsPage() {
   const [questions, setQuestions] = useState<Question[]>([])
-  const [currentId, setCurrentId] = useState<number>(0)
+  const [currentId, setCurrentId] = useState<number | null>(null)
   const [votesByQ, setVotesByQ] = useState<Record<number, Vote[]>>({})
+  const inFlightRef = useRef(false)
 
   async function poll() {
+    if (inFlightRef.current) return
+    inFlightRef.current = true
     try {
-      const res = await fetch('/api/state', { cache: 'no-store' })
+      const res = await fetch(`/api/state?t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'cache-control': 'no-cache' },
+      })
       const data: StateResp = await res.json()
       setQuestions(data.questions)
       setCurrentId(data.currentQuestionId)
@@ -38,7 +44,10 @@ export default function ResultsPage() {
         grouped[v.question_id].push(v)
       }
       setVotesByQ(grouped)
-    } catch {}
+    } catch {
+    } finally {
+      inFlightRef.current = false
+    }
   }
 
   useEffect(() => {
